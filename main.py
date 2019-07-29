@@ -25,7 +25,7 @@ import tensorflow as tf
 import pycocotools.mask as cocomask
 
 from tqdm import tqdm
-from models import pack, initialize
+from models import pack, initialize, pack2
 from nn import resizeImage, fill_full_mask
 from utils import evalcoco, match_detection, computeAP, computeAR, computeAR_2, grouper, gather_dt, gather_gt, match_dt_gt, gather_act_singles, aggregate_eval, weighted_average
 
@@ -2117,7 +2117,8 @@ if __name__ == "__main__":
 	if config.mode == "pack":
 		config.is_pack_model = True
 	if config.is_pack_model:
-		pack(config)
+		pack2(config)
+		# pack(config)
 	else:
 		if config.log_time_and_gpu:
 			gpu_log_interval = 10 # every k seconds
