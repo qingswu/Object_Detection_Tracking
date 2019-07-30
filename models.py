@@ -120,7 +120,8 @@ def pack2(config):
             tf.saved_model.signature_def_utils.build_signature_def(
                 inputs={
                     'image': tf.saved_model.utils.build_tensor_info(model.image),
-                    'select_threshold': tf.saved_model.utils.build_tensor_info(model.select_threshold)},
+                    'select_threshold': tf.saved_model.utils.build_tensor_info(model.select_threshold)
+                },
                 outputs={
                     "final_boxes": tf.saved_model.utils.build_tensor_info(model.final_boxes),
                     "final_labels": tf.saved_model.utils.build_tensor_info(model.final_labels),
@@ -1090,13 +1091,20 @@ class Mask_RCNN_FPN():
             l = conv2d(l, num_class-1, kernel=1, data_format="NCHW", W_init=tf.variance_scaling_initializer(
                 scale=2.0, mode="fan_out", distribution='normal'), scope="conv")
             return l
+        
+    def apply_threshold(self, X):
+        # [K]
+        ids = tf.reshape(tf.where(prob >= self.select_threshold), [-1])
+        prob_ = tf.gather(prob, ids)
+        box_ = tf.gather(box, ids)
+        return prob_, bbox_
 
     def nms_return_masks(self, X):
         config = self.config
-        prob, box, select_threshold = X  # [K], [K,4]
+        prob, box = X  # [K], [K,4]
         output_shape = tf.shape(prob)
         # [K]
-        ids = tf.reshape(tf.where(prob >= select_threshold), [-1])
+        ids = tf.reshape(tf.where(prob >= self.select_threshold), [-1])
         prob_ = tf.gather(prob, ids)
         box_ = tf.gather(box, ids)
         # NMS
@@ -1162,12 +1170,11 @@ class Mask_RCNN_FPN():
 
             # for each catagory get the top K
             # [num_class-1, K]
-            if no_score_filter:
-                masks = tf.map_fn(self.nms_return_masks_no_score_filter,
+            if not no_score_filter:
+                probs, boxes = tf.map_fn(self.apply_threshold, (probs, boxes), dtype=(tf.float32, tf.float32), parallel_iterations=10)
+            masks = tf.map_fn(self.nms_return_masks_no_score_filter,
                                   (probs, boxes), dtype=tf.bool, parallel_iterations=10)
-            else:
-                masks = tf.map_fn(
-                    self.nms_return_masks, (probs, boxes, self.select_threshold), dtype=tf.bool, parallel_iterations=10)
+
             # [R*(num_class-1),2], each entry is [cat_id,box_id]
             selected_indices = tf.where(masks)
 
